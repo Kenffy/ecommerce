@@ -1,9 +1,11 @@
 using api.Extensions;
 using api.Helpers;
 using api.Middelware;
+using Core.Entities.Identity;
 using Infrastructure.Data;
+using Infrastructure.Identity;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,52 +14,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddAutoMapper(typeof(MappingProfiles));
-builder.Services.AddApplicationServices();
-builder.Services.AddDbContext<StoreContext>(option => {
-    option.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"));
-});
-builder.Services.AddSingleton<IConnectionMultiplexer>(c => {
-    var options = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("Redis"));
-    return ConnectionMultiplexer.Connect(options);
-});
+builder.Services.AddApplicationServices(builder.Configuration);
+builder.Services.AddIdentityServices(builder.Configuration);
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerDocumentation();
-builder.Services.AddCors(opt =>
-{
-    opt.AddPolicy("CorsPolicy", policy =>
-    {
-        policy.AllowAnyHeader().AllowAnyMethod().WithOrigins("https://localhost:4200");
-    });
-});
-
-// ###############################################################################
 
 var app = builder.Build();
-
-// ######################### Create and init database ###########################
-// Initialize and create database by startup
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    var loggerFactory = services.GetRequiredService<ILoggerFactory>();
-    try
-    {
-        var context = services.GetRequiredService<StoreContext>();
-        context.Database.Migrate();
-        StoreContextSeed.SeedData(context, loggerFactory);
-    }
-    catch (Exception ex)
-    {
-        var logger = loggerFactory.CreateLogger<Program>();
-        logger.LogError(ex, "An error occurred during migration");
-    }
-}
-
-
-// ###############################################################################
-
-
 
 // Configure the HTTP request pipeline.
 app.UseMiddleware<ExceptionMiddleware>();
@@ -70,8 +31,38 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseCors("CorsPolicy");
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+
+
+// ######################### Create and init database ###########################
+// Initialize and create database by startup
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var loggerFactory = services.GetRequiredService<ILoggerFactory>();
+    var context = services.GetRequiredService<StoreContext>();
+    var identityContext = services.GetRequiredService<AppIdentityDbContext>();
+    var userManager = services.GetRequiredService<UserManager<AppUser>>();
+    try
+    {
+        await context.Database.MigrateAsync();
+        await identityContext.Database.MigrateAsync();
+        await StoreContextSeed.SeedDataAsync(context, loggerFactory);
+        await AppIdentityDbContextSeed.SeedUsersAsync(userManager);
+    }
+    catch (Exception ex)
+    {
+        var logger = loggerFactory.CreateLogger<Program>();
+        logger.LogError(ex, "An error occurred during migration");
+    }
+}
+
+// ###############################################################################
+
+
 
 app.Run();
