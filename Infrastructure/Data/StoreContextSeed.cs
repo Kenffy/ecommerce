@@ -7,7 +7,7 @@ namespace Infrastructure.Data
 {
     public class StoreContextSeed
     {
-        public static void SeedData(StoreContext context, ILoggerFactory loggerFactory)
+        public static async Task SeedDataAsync(StoreContext context, ILoggerFactory loggerFactory)
         {
             try
             {
@@ -23,7 +23,7 @@ namespace Infrastructure.Data
                         context.ProductBrands.Add(item);
                     }
 
-                    context.SaveChanges();
+                    await context.SaveChangesAsync();
                 }
 
                 if (!context.ProductTypes.Any())
@@ -36,7 +36,7 @@ namespace Infrastructure.Data
                         context.ProductTypes.Add(item);
                     }
 
-                    context.SaveChanges();
+                    await context.SaveChangesAsync();
                 }
 
                 if (!context.Products.Any())
@@ -49,7 +49,7 @@ namespace Infrastructure.Data
                         context.Products.Add(item);
                     }
 
-                    context.SaveChanges();
+                    await context.SaveChangesAsync();
                 }
 
                 // if (!context.DeliveryMethods.Any())
